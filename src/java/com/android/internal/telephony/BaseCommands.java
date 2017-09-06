@@ -1,5 +1,12 @@
 
 /*
+ * This source code is "Not a Contribution" under Apache license
+ *
+ * Based on work by The Android Open Source Project
+ * Modified by Sierra Wireless, Inc.
+ *
+ * Copyright (C) 2017 Sierra Wireless, Inc.
+ *
  * Copyright (C) 2006 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -75,6 +82,9 @@ public abstract class BaseCommands implements CommandsInterface {
             new RegistrantList();
     protected RegistrantList mPcoDataRegistrants = new RegistrantList();
 
+    /* SWISTART */
+    protected RegistrantList mUnsolOemHookRawRegistrants = new RegistrantList() ;
+    /* SWISTOP */
 
     protected Registrant mGsmSmsRegistrant;
     protected Registrant mCdmaSmsRegistrant;
@@ -586,13 +596,19 @@ public abstract class BaseCommands implements CommandsInterface {
 
     public void setOnUnsolOemHookRaw(Handler h, int what, Object obj) {
         mUnsolOemHookRawRegistrant = new Registrant (h, what, obj);
+        //SWISTART
+        mUnsolOemHookRawRegistrants.add(mUnsolOemHookRawRegistrant);
+        //SWISTOP
     }
 
     public void unSetOnUnsolOemHookRaw(Handler h) {
-        if (mUnsolOemHookRawRegistrant != null && mUnsolOemHookRawRegistrant.getHandler() == h) {
-            mUnsolOemHookRawRegistrant.clear();
-            mUnsolOemHookRawRegistrant = null;
-        }
+        //SWISTART
+        //if (mUnsolOemHookRawRegistrant != null && mUnsolOemHookRawRegistrant.getHandler() == h) {
+        //    mUnsolOemHookRawRegistrant.clear();
+        //    mUnsolOemHookRawRegistrant = null;
+        //}
+        mUnsolOemHookRawRegistrants.remove(h);
+        //SWISTOP
     }
 
     @Override

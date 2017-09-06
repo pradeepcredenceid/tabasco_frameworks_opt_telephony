@@ -1,4 +1,11 @@
 /*
+ * This source code is "Not a Contribution" under Apache license
+ *
+ * Based on work by The Android Open Source Project
+ * Modified by Sierra Wireless, Inc.
+ *
+ * Copyright (C) 2017 Sierra Wireless, Inc.
+ *
  * Copyright (C) 2006 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -1076,8 +1083,6 @@ public final class RIL extends BaseCommands implements CommandsInterface {
 
         if (RILJ_LOGD) riljLog(rr.serialString() + "> " + requestToString(rr.mRequest));
 
-        mMetrics.writeRilDial(mInstanceId, rr.mSerial, clirMode, uusInfo);
-
         send(rr);
     }
 
@@ -1133,8 +1138,6 @@ public final class RIL extends BaseCommands implements CommandsInterface {
         if (RILJ_LOGD) riljLog(rr.serialString() + "> " + requestToString(rr.mRequest) + " " +
                 gsmIndex);
 
-        mMetrics.writeRilHangup(mInstanceId, rr.mSerial, gsmIndex);
-
         rr.mParcel.writeInt(1);
         rr.mParcel.writeInt(gsmIndex);
 
@@ -1149,8 +1152,6 @@ public final class RIL extends BaseCommands implements CommandsInterface {
 
         if (RILJ_LOGD) riljLog(rr.serialString() + "> " + requestToString(rr.mRequest));
 
-        mMetrics.writeRilHangup(mInstanceId, rr.mSerial, -1);
-
         send(rr);
     }
 
@@ -1162,8 +1163,6 @@ public final class RIL extends BaseCommands implements CommandsInterface {
                         RIL_REQUEST_HANGUP_FOREGROUND_RESUME_BACKGROUND,
                                         result);
         if (RILJ_LOGD) riljLog(rr.serialString() + "> " + requestToString(rr.mRequest));
-
-        mMetrics.writeRilHangup(mInstanceId, rr.mSerial, -1);
 
         send(rr);
     }
@@ -3414,7 +3413,10 @@ public final class RIL extends BaseCommands implements CommandsInterface {
             case RIL_UNSOL_OEM_HOOK_RAW:
                 if (RILJ_LOGD) unsljLogvRet(response, IccUtils.bytesToHexString((byte[]) ret));
                 if (mUnsolOemHookRawRegistrant != null) {
-                    mUnsolOemHookRawRegistrant.notifyRegistrant(new AsyncResult(null, ret, null));
+                    //SWISTART
+                    //mUnsolOemHookRawRegistrant.notifyRegistrant(new AsyncResult(null, ret, null));
+                    mUnsolOemHookRawRegistrants.notifyRegistrants(new AsyncResult(null, ret, null));
+                    //SWISTOP
                 }
                 break;
 

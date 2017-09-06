@@ -1,4 +1,11 @@
 /*
+ * This source code is "Not a Contribution" under Apache license
+ *
+ * Based on work by The Android Open Source Project
+ * Modified by Sierra Wireless, Inc.
+ *
+ * Copyright (C) 2017 Sierra Wireless, Inc.
+ *
  * Copyright (C) 2015 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +30,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.ComponentName;
 import android.database.SQLException;
 import android.net.Uri;
 import android.os.AsyncResult;
@@ -117,6 +125,15 @@ public class GsmCdmaPhone extends Phone {
     private static final String VM_NUMBER_CDMA = "vm_number_key_cdma";
     public static final int RESTART_ECM_TIMER = 0; // restart Ecm timer
     public static final int CANCEL_ECM_TIMER = 1; // cancel Ecm timer
+    //SWISTART For SWIOMADM-MC73/EM73
+    static final int SWIOMADM_FOTA_IND = 0;
+    static final int SWIOMADM_CONFIG_IND = 1;
+    static final int SWIOMADM_NOTIFICATION_IND = 8;
+    static final int EVENT_FOTA_QUERY_FW_DOWNLOAD_IND = 2;
+    static final int EVENT_FOTA_QUERY_FW_UPDATE_IND = 5;
+    static final int EVENT_CONFIG_READ_REQUEST_IND = 1;
+    static final int EVENT_CONFIG_CHANGE_REQUEST_IND = 2;
+    //SWISTOP
     private CdmaSubscriptionSourceManager mCdmaSSM;
     public int mCdmaSubscriptionSource = CdmaSubscriptionSourceManager.SUBSCRIPTION_SOURCE_UNKNOWN;
     public EriManager mEriManager;
@@ -250,6 +267,9 @@ public class GsmCdmaPhone extends Phone {
         mCi.setEmergencyCallbackMode(this, EVENT_EMERGENCY_CALLBACK_MODE_ENTER, null);
         mCi.registerForExitEmergencyCallbackMode(this, EVENT_EXIT_EMERGENCY_CALLBACK_RESPONSE,
                 null);
+        //SWISTART
+        mCi.setOnUnsolOemHookRaw(this, EVENT_CDMA_UPDATE_OMADM_STATUS, null);
+        //SWISTOP
         // get the string that specifies the carrier OTA Sp number
         mCarrierOtaSpNumSchema = TelephonyManager.from(mContext).getOtaSpNumberSchemaForPhone(
                 getPhoneId(), "");
@@ -1121,6 +1141,14 @@ public class GsmCdmaPhone extends Phone {
                 && mSST.mSS.getDataRegState() != ServiceState.STATE_IN_SERVICE && !isEmergency) {
             throw new CallStateException("cannot dial in current state");
         }
+        // Check non-emergency voice CS call - shouldn't dial when POWER_OFF
+        if (mSST != null && mSST.mSS.getState() == ServiceState.STATE_POWER_OFF /* CS POWER_OFF */
+                && !VideoProfile.isVideo(videoState) /* voice call */
+                && !isEmergency /* non-emergency call */) {
+            throw new CallStateException(
+                CallStateException.ERROR_POWER_OFF,
+                "cannot dial voice call in airplane mode");
+        }
         if (DBG) logd("Trying (non-IMS) CS call");
 
         if (isPhoneTypeGsm()) {
@@ -1799,6 +1827,16 @@ public class GsmCdmaPhone extends Phone {
         mCi.unregisterForCdmaOtaProvision(h);
     }
 
+    //SWISTART
+    public void setOnUnsolOemHookRaw(Handler h, int what, Object obj) {
+        mCi.setOnUnsolOemHookRaw(h, what, obj);
+    }
+
+    public void unSetOnUnsolOemHookRaw(Handler h) {
+        mCi.unSetOnUnsolOemHookRaw(h);
+    }
+    //SWISTOP
+
     @Override
     public void registerForSubscriptionInfoReady(Handler h, int what, Object obj) {
         mSST.registerForSubscriptionInfoReady(h, what, obj);
@@ -1854,6 +1892,19 @@ public class GsmCdmaPhone extends Phone {
         if (mPendingMMIs.remove(mmi) || (isPhoneTypeGsm() && (mmi.isUssdRequest() ||
                 ((GsmMmiCode)mmi).isSsInfo()))) {
             mMmiCompleteRegistrants.notifyRegistrants(new AsyncResult(null, mmi, null));
+        }
+    }
+
+    public boolean supports3gppCallForwardingWhileRoaming() {
+        CarrierConfigManager configManager = (CarrierConfigManager)
+                getContext().getSystemService(Context.CARRIER_CONFIG_SERVICE);
+        PersistableBundle b = configManager.getConfig();
+        if (b != null) {
+            return b.getBoolean(
+                    CarrierConfigManager.KEY_SUPPORT_3GPP_CALL_FORWARDING_WHILE_ROAMING_BOOL, true);
+        } else {
+            // Default value set in CarrierConfigManager
+            return true;
         }
     }
 
@@ -2038,8 +2089,11 @@ public class GsmCdmaPhone extends Phone {
                 if (ar.exception == null) {
                     if ((ar.result != null) && (((int[]) ar.result).length != 0)) {
                         int newVoiceTech = ((int[]) ar.result)[0];
-                        logd(what + ": newVoiceTech=" + newVoiceTech);
-                        phoneObjectUpdater(newVoiceTech);
+                        //SWISTART
+                        //SWI_TBD currently these 2 event not supported from RIL. Ignore them for now.
+                        loge("Voice Radio Technology event " + what + " has tech:" + newVoiceTech);
+                        //updatePhoneObject(newVoiceTech);
+                        //SWISTOP
                     } else {
                         loge(what + ": has no tech!");
                     }
@@ -2309,6 +2363,56 @@ public class GsmCdmaPhone extends Phone {
                 }
                 Rlog.d(LOG_TAG, "EVENT_GET_RADIO_CAPABILITY: phone rc: " + rc);
                 break;
+
+           //SWISTART
+            case EVENT_CDMA_UPDATE_OMADM_STATUS:
+                String moduleType = SystemProperties.get("persist.radio.module");
+    	        Rlog.d(LOG_TAG,"Module is "+moduleType);
+    	        if((moduleType.contains("EM73")) || (moduleType.contains("EM74")) ||
+                   (moduleType.contains("MC73")) || (moduleType.contains("MC74"))) {
+                   ar = (AsyncResult)msg.obj;
+		           if (ar.exception != null) {
+                       break;
+                   }
+		           byte [] first = (byte [])ar.result;
+                   if (first[0] == SWIOMADM_FOTA_IND)
+                   {
+                        Rlog.d(LOG_TAG, "inside SWIOMADM_FOTA_IND");
+                        if (isFumoUpdateNetworkInitiated(first) == true)
+                        {
+                            Rlog.d(LOG_TAG, "inside SWIOMA FOTA Network initiated");
+                            if ((first[1] == EVENT_FOTA_QUERY_FW_DOWNLOAD_IND) ||
+                                (first[1] == EVENT_FOTA_QUERY_FW_UPDATE_IND))
+                            {
+                                Rlog.d(LOG_TAG, "inside network initiated SWIOMA FW download/update");
+                                Intent intent = new Intent();
+                                intent.setComponent(new ComponentName("com.android.swiomadm", "com.android.swiomadm.NIHFAFUMO"));
+                                intent.putExtra("EVENT", first);
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                getContext().startActivity(intent);
+                            }
+                        }
+                    }
+                    else if (first[0] == SWIOMADM_CONFIG_IND)
+                    {
+                        Rlog.d(LOG_TAG, "inside SWIOMADM_CONFIG_IND");
+                        if ( (first[1] == EVENT_CONFIG_READ_REQUEST_IND) || (first[1] == EVENT_CONFIG_CHANGE_REQUEST_IND) )
+                        {
+                            Rlog.d(LOG_TAG, "inside OMADM_STATE_DC_START");
+       			            Intent intent = new Intent();
+                            intent.setComponent(new ComponentName("com.android.swiomadm", "com.android.swiomadm.NIHFACONFIG"));
+                            intent.putExtra("EVENT", first);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            getContext().startActivity(intent);
+                        }
+		            }
+                    else if (first[0] == SWIOMADM_NOTIFICATION_IND)
+                    {
+                        Rlog.d(LOG_TAG, "inside SWIOMADM_NOTIFICATION_IND");
+                    }
+                }
+	            break;
+            //SWISTOP
 
             default:
                 super.handleMessage(msg);
@@ -3240,6 +3344,55 @@ public class GsmCdmaPhone extends Phone {
     public void notifyEcbmTimerReset(Boolean flag) {
         mEcmTimerResetRegistrants.notifyResult(flag);
     }
+
+    //SWISTART
+    /* Extracts short data from byte array */
+	private int extractshort(byte[] data, int offset)
+    {
+        int value = 0;
+        int tempVal = 0;
+
+        value = data[offset];
+        if (value <0)
+            value = 256 - Math.abs(value);
+
+        value *= 256;
+
+        tempVal = data[offset+1];
+        if (tempVal < 0)
+        {
+            tempVal = 256 - Math.abs(tempVal);
+        }
+
+        value += tempVal;
+        return value;
+    }
+
+    // Parse SWIOMA FOTA IND for MC73xx or Em73xx modules to figure if indication is network initiated
+    private boolean isFumoUpdateNetworkInitiated(byte [] data) {
+        boolean bResult = false;
+        int versionLength;
+        int nameLength;
+        int descLength;
+        int VERSION_LENGTH_OFFSET = 16;
+        versionLength = extractshort(data,VERSION_LENGTH_OFFSET);
+        int NAME_LENGTH_OFFSET = VERSION_LENGTH_OFFSET + 2 + versionLength;
+        nameLength = extractshort(data,NAME_LENGTH_OFFSET);
+        int DESC_LENGTH_OFFSET = NAME_LENGTH_OFFSET + 2 + nameLength;
+        descLength = extractshort(data,DESC_LENGTH_OFFSET);
+        int SESSION_TYPE_OFFSET = DESC_LENGTH_OFFSET + 2 + descLength;
+
+        Rlog.d(LOG_TAG, "SWIOMA FW Package Length Offset is " + NAME_LENGTH_OFFSET);
+        Rlog.d(LOG_TAG, "SWIOMA FW Description Length Offset is " + DESC_LENGTH_OFFSET);
+        Rlog.d(LOG_TAG, "SWIOMA FW Session Type Offset is " + SESSION_TYPE_OFFSET);
+        if (data[SESSION_TYPE_OFFSET] == 1)
+        {
+            Rlog.d(LOG_TAG, "SWIOMA FOTA is network initiated");
+            bResult = true;
+        }
+        return bResult;
+    }
+    //SWISTOP
 
     /**
      * Registration point for Ecm timer reset
