@@ -432,7 +432,6 @@ public class ServiceStateTracker extends Handler {
     /** Already sent the event-log for no gprs register. */
     private boolean mReportedGprsNoReg;
 
-    private CarrierServiceStateTracker mCSST;
     /**
      * The Notification object given to the NotificationManager.
      */
@@ -562,17 +561,6 @@ public class ServiceStateTracker extends Handler {
         mPhone.notifyOtaspChanged(OTASP_UNINITIALIZED);
 
         updatePhoneType();
-
-        mCSST = new CarrierServiceStateTracker(phone, this);
-
-        registerForNetworkAttached(mCSST,
-                CarrierServiceStateTracker.CARRIER_EVENT_VOICE_REGISTRATION, null);
-        registerForNetworkDetached(mCSST,
-                CarrierServiceStateTracker.CARRIER_EVENT_VOICE_DEREGISTRATION, null);
-        registerForDataConnectionAttached(mCSST,
-                CarrierServiceStateTracker.CARRIER_EVENT_DATA_REGISTRATION, null);
-        registerForDataConnectionDetached(mCSST,
-                CarrierServiceStateTracker.CARRIER_EVENT_DATA_DEREGISTRATION, null);
     }
 
     @VisibleForTesting

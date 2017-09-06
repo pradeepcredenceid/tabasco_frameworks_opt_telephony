@@ -319,14 +319,6 @@ public class DcTracker extends Handler {
                     log("WIFI_STATE_CHANGED_ACTION: enabled=" + enabled
                             + " mIsWifiConnected=" + mIsWifiConnected);
                 }
-            } else if (action.equals(CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED)) {
-                CarrierConfigManager configMgr = (CarrierConfigManager)
-                        mPhone.getContext().getSystemService(Context.CARRIER_CONFIG_SERVICE);
-                if (configMgr != null) {
-                    PersistableBundle cfg = configMgr.getConfigForSubId(mPhone.getSubId());
-                    if (cfg != null) mAllowUserEditTetherApn =
-                            cfg.getBoolean(CarrierConfigManager.KEY_EDITABLE_TETHER_APN_BOOL);
-                }
             } else {
                 if (DBG) log("onReceive: Unknown action=" + action);
             }
