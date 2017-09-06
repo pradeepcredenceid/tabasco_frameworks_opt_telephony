@@ -1083,6 +1083,8 @@ public final class RIL extends BaseCommands implements CommandsInterface {
 
         if (RILJ_LOGD) riljLog(rr.serialString() + "> " + requestToString(rr.mRequest));
 
+        mMetrics.writeRilDial(mInstanceId, rr.mSerial, clirMode, uusInfo);
+
         send(rr);
     }
 
@@ -1138,6 +1140,8 @@ public final class RIL extends BaseCommands implements CommandsInterface {
         if (RILJ_LOGD) riljLog(rr.serialString() + "> " + requestToString(rr.mRequest) + " " +
                 gsmIndex);
 
+        mMetrics.writeRilHangup(mInstanceId, rr.mSerial, gsmIndex);
+
         rr.mParcel.writeInt(1);
         rr.mParcel.writeInt(gsmIndex);
 
@@ -1152,6 +1156,8 @@ public final class RIL extends BaseCommands implements CommandsInterface {
 
         if (RILJ_LOGD) riljLog(rr.serialString() + "> " + requestToString(rr.mRequest));
 
+        mMetrics.writeRilHangup(mInstanceId, rr.mSerial, -1);
+
         send(rr);
     }
 
@@ -1163,6 +1169,8 @@ public final class RIL extends BaseCommands implements CommandsInterface {
                         RIL_REQUEST_HANGUP_FOREGROUND_RESUME_BACKGROUND,
                                         result);
         if (RILJ_LOGD) riljLog(rr.serialString() + "> " + requestToString(rr.mRequest));
+
+        mMetrics.writeRilHangup(mInstanceId, rr.mSerial, -1);
 
         send(rr);
     }
